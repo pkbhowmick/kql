@@ -2,18 +2,24 @@ package schema
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/graphql-go/graphql"
+	core "k8s.io/api/core/v1"
 )
 
 type Pod struct {
 	Name      string `json:"name"`
 	Namespace string `json:"namespace"`
-	Replicas  int32  `json:"replicas"`
+	Node      string `json:"node"`
 	Phase     string `json:"phase"`
 }
 
-var PodList []Pod
+var PodList map[string]core.Pod
+
+func init() {
+	PodList = make(map[string]core.Pod)
+}
 
 var podType = graphql.NewObject(graphql.ObjectConfig{
 	Name: "Pod",
@@ -24,8 +30,8 @@ var podType = graphql.NewObject(graphql.ObjectConfig{
 		"namespace": &graphql.Field{
 			Type: graphql.String,
 		},
-		"replicas": &graphql.Field{
-			Type: graphql.Int,
+		"node": &graphql.Field{
+			Type: graphql.String,
 		},
 		"phase": &graphql.Field{
 			Type: graphql.String,
@@ -62,12 +68,17 @@ var rootQuery = graphql.NewObject(graphql.ObjectConfig{
 					return nil, errors.New("namespace is not provided")
 				}
 
-				for _, p := range PodList {
-					if p.Name == name && p.Namespace == ns {
-						return p, nil
-					}
+				key := fmt.Sprintf("%s/%s", ns, name)
+				val, ok := PodList[key]
+				if !ok {
+					return &Pod{}, nil
 				}
-				return &Pod{}, nil
+				return &Pod{
+					Name:      name,
+					Namespace: ns,
+					Node:      val.Spec.NodeName,
+					Phase:     string(val.Status.Phase),
+				}, nil
 			},
 		},
 
