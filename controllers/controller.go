@@ -52,7 +52,13 @@ func (r *CustomPodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
-	schema.PodList[req.NamespacedName.String()] = pod
+	p := schema.Pod{
+		Name:      pod.Name,
+		Namespace: pod.Namespace,
+		Node:      pod.Spec.NodeName,
+		Phase:     string(pod.Status.Phase),
+	}
+	schema.PodList[req.NamespacedName.String()] = p
 
 	return ctrl.Result{}, nil
 }

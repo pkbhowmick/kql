@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"log"
@@ -78,7 +79,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	go startAPIServer()
+	svr := &http.Server{
+		Addr: "0.0.0.0:8085",
+	}
+	go startAPIServer(svr)
+	defer func() {
+		log.Println("Gracefully shutting down the server")
+		if err := svr.Shutdown(context.Background()); err != nil {
+			log.Printf("failed to shut down the server, reason %v", err)
+		} else {
+			log.Println("Successfully shut down the server")
+		}
+	}()
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
@@ -99,8 +111,8 @@ func execQuery(query string, schema graphql.Schema) *graphql.Result {
 	return result
 }
 
-func startAPIServer() {
-	http.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+func startAPIServer(svr *http.Server) {
+	http.HandleFunc("/kql", func(w http.ResponseWriter, r *http.Request) {
 		log.Println("Get request from url: ", r.URL.String())
 		result := execQuery(r.URL.Query().Get("query"), schema.PodSchema)
 		err := json.NewEncoder(w).Encode(result)
@@ -112,11 +124,12 @@ func startAPIServer() {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 	})
-	log.Println("Server is listening on port 8080")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	log.Printf("Server is listening on addr %v", svr.Addr)
+	if err := svr.ListenAndServe(); err != nil {
 		log.Println(err)
 	}
 }
 
-// curl command (pod): curl -g 'http://localhost:8080/graphql?query={pod(name:"nginx",namespace:"demo"){replicas,phase}}'
-// curl command (podList): curl -g 'http://localhost:8080/graphql?query={podList{name,namespace,phase}}'
+// Example curl command:
+// curl command (pod): curl -g 'http://localhost:8085/kql?query={pod(name:"nginx-ahgt-86888W",namespace:"demo"){node,phase}}'
+// curl command (pods): curl -g 'http://localhost:8085/kql?query={pods{name,namespace,phase}}'

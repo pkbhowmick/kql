@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/graphql-go/graphql"
-	core "k8s.io/api/core/v1"
 )
 
 type Pod struct {
@@ -15,10 +14,10 @@ type Pod struct {
 	Phase     string `json:"phase"`
 }
 
-var PodList map[string]core.Pod
+var PodList map[string]Pod
 
 func init() {
-	PodList = make(map[string]core.Pod)
+	PodList = make(map[string]Pod)
 }
 
 var podType = graphql.NewObject(graphql.ObjectConfig{
@@ -73,20 +72,19 @@ var rootQuery = graphql.NewObject(graphql.ObjectConfig{
 				if !ok {
 					return &Pod{}, nil
 				}
-				return &Pod{
-					Name:      name,
-					Namespace: ns,
-					Node:      val.Spec.NodeName,
-					Phase:     string(val.Status.Phase),
-				}, nil
+				return val, nil
 			},
 		},
 
-		"podList": &graphql.Field{
+		"pods": &graphql.Field{
 			Type:        graphql.NewList(podType),
 			Description: "List of Pods",
 			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-				return PodList, nil
+				l := make([]Pod, 0, len(PodList))
+				for _, v := range PodList {
+					l = append(l, v)
+				}
+				return l, nil
 			},
 		},
 	},
